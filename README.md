@@ -1,8 +1,155 @@
 # Surgical Robot Agent
 
-Isaac Sim 환경에서 Doosan M0609 로봇을 제어하는 수술 도구 전달 프로젝트입니다.
+Isaac Sim 기반 수술 로봇(Doosan M0609) 시뮬레이션 패키지.
+손 추적(Hand Tracking) → Pick & Place → ROS2 브리지 통합.
 
-프로젝트의 핵심 목표는 다음과 같습니다.
+---
+
+## 요구 환경
+
+| 항목 | 버전 |
+|---|---|
+| Isaac Sim | 4.x |
+| ROS2 | Humble |
+| cuRobo | 0.7+ |
+| Python | Isaac Sim 내장 python.sh |
+
+---
+
+## 디렉토리 구조
+
+```
+surgical_robot_agent/
+├── main.py                           # 실행 진입점
+├── config.py                         # 전체 설정 (경로, 파라미터)
+│
+├── assets/
+│   ├── environments/full_scene/      # ⚠️ git 미포함 — 직접 배치 필요
+│   │   └── full_scene.usda
+│   ├── robots/doosan-robot2/         # M0609 URDF + mesh
+│   ├── tools/surgical_instruments/   # 수술도구 USD (8종)
+│   └── trays/red_tray/              # 트레이 USD
+│
+├── configs/
+│   └── m0609_v1.yml                 # cuRobo 로봇 키네마틱 설정
+│
+├── motion/
+│   ├── m0609_curobo_controller.py   # cuRobo MPC / MotionGen 컨트롤러
+│   ├── m0609_move_controller.py     # RMPFlow 단일 목표 이동 컨트롤러
+│   ├── m0609_tracking_controller.py # 손 추종 (cuRobo MPC)
+│   └── rmpflow/                     # RMPFlow 설정 yaml + Pick&Place 컨트롤러
+│
+├── gripper/
+│   ├── surface_gripper_adapter.py   # Isaac Surface Gripper 래퍼
+│   └── dual_surface_gripper_adapter.py  # 듀얼 흡착 그리퍼 통합
+│
+├── scene/
+│   └── dynamic_tray_builder.py      # 동적 큐브 트레이 생성 (DynamicCuboid)
+│
+├── state_machine/
+│   ├── m0609_state_machine.py       # IDLE / TRACKING / PICK / PLACE 상태머신
+│   └── m0609_task.py                # Isaac Sim BaseTask (Scene 초기 구성)
+│
+├── input/
+│   └── hand_marker_visualizer.py    # 손 위치 시각화 구체 (VisualSphere)
+│
+└── ros_bridge/
+    └── m0609_ros_bridge.py          # OmniGraph 기반 ROS2 Bridge
+```
+
+---
+
+## 최초 설정
+
+### 1. full_scene.usda 배치
+
+`assets/environments/full_scene/` 폴더는 파일 크기(54MB+) 문제로 git에 포함되지 않는다.
+아래 경로에 직접 복사한다.
+
+```
+/home/rokey/cobot3_ws/surgical_robot_agent/assets/environments/full_scene/full_scene.usda
+```
+
+### 2. cuRobo URDF 경로 확인
+
+`configs/m0609_v1.yml` 의 경로가 아래로 고정되어 있다.
+설치 위치가 다르면 직접 수정 필요.
+
+```yaml
+urdf_path: /home/rokey/cobot3_ws/surgical_robot_agent/assets/robots/doosan-robot2/urdf/m0609_isaac_sim.urdf
+asset_root_path: /home/rokey/cobot3_ws/surgical_robot_agent/assets/robots/doosan-robot2
+```
+
+---
+
+## 실행
+
+터미널 두 개를 사용한다. **두 터미널 모두 ROS_DOMAIN_ID 동일하게 설정.**
+
+### 터미널 1 — 핸드트래킹
+
+```bash
+source /opt/ros/humble/setup.bash
+ROS_DOMAIN_ID=136 python3 /path/to/hand_tracking_script.py
+```
+
+### 터미널 2 — Isaac Sim 시뮬레이션
+
+```bash
+source /opt/ros/humble/setup.bash
+cd /home/rokey/cobot3_ws/surgical_robot_agent
+ROS_DOMAIN_ID=136 ~/.local/share/ov/pkg/isaac-sim-*/python.sh main.py
+```
+
+> Isaac Sim 먼저 실행 후 핸드트래킹을 켜도 된다.
+
+---
+
+## ROS2 토픽
+
+| 방향 | 토픽 | 타입 | 설명 |
+|---|---|---|---|
+| Subscribe | `/hand_raw` | `geometry_msgs/Point` | 손 원시 좌표 (시각화용) |
+| Subscribe | `/hand_xyz` | `geometry_msgs/Point` | 보정된 EE 목표 좌표 |
+| Subscribe | `/hand_mode` | `std_msgs/String` | `TRACKING` / `HOME` |
+| Subscribe | `/m0609/pick_command` | `std_msgs/Int32` | 트레이 번호 (4~7) |
+| Subscribe | `/m0609/move_command` | `std_msgs/String` | JSON 이동 명령 |
+| Publish | `/m0609/move_result` | `std_msgs/String` | 이동 결과 응답 |
+
+### Pick 명령 예시
+
+```bash
+ros2 topic pub --once /m0609/pick_command std_msgs/msg/Int32 "{data: 7}"
+```
+
+지원 트레이 번호: `4`, `5`, `6`, `7`
+
+---
+
+## 주요 설정
+
+모든 파라미터는 `config.py` 에서 관리한다.
+
+| 항목 | 변수 | 기본값 |
+|---|---|---|
+| 로봇 베이스 위치 | `ROBOT_BASE_POSITION` | `(0.5, 0.2, 1.0)` |
+| 로봇 베이스 회전 | `ROBOT_BASE_YAW_DEG` | `90.0` |
+| 트레이 생성 위치 | `TRAY_SPAWN_POSITIONS` | 4~7번 좌표 dict |
+| 손 추종 Z 범위 | `TRACKING_Z_MIN / MAX` | `1.10 ~ 1.55` |
+| 큐브 트레이 크기 | `TEMP_TRAY_SIZE` | `(0.30, 0.22, 0.019)` |
+| 큐브 트레이 질량 | `TEMP_TRAY_MASS` | `0.15 kg` |
+| Pick Z 보정 | `PICK_APPROACH_Z_CORRECTION` | `0.042` |
+| Place link6 높이 | `PLACE_LINK6_ABOVE_TRAY` | `0.136` |
+
+---
+
+## 트레이 위치
+
+```
+     y=0.55   y=0.85
+x=0.24  [4]     [5]
+x=0.72  [6]     [7]
+```
 
 - 트레이 위의 수술 도구 Pick & Place
 - MediaPipe 기반 실시간 손 추적
