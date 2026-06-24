@@ -34,16 +34,35 @@ def _empty_world():
 class M0609CuroboController:
     def __init__(
         self,
-        robot_config_path="/home/rokey/m0609_v1.yml",
+        robot_config_path=None,
         base_position=(0.0, 0.0, 0.0),
         use_mpc=True,
         base_yaw_deg=90.0,
     ):
+        # 패키지 단독 배포를 위해 config의 단일 소스 경로를 사용한다.
+        from config import (
+            CUROBO_ROBOT_CONFIG_PATH,
+            M0609_ASSET_ROOT_PATH,
+            M0609_URDF_PATH,
+        )
+
+        if robot_config_path is None:
+            robot_config_path = CUROBO_ROBOT_CONFIG_PATH
+
         self.base_pos = np.array(base_position, dtype=float)
         self.base_yaw_deg = base_yaw_deg
         self.tensor_args = TensorDeviceType()
 
         cfg_dict = load_yaml(robot_config_path)["robot_cfg"]
+
+        # m0609_v1.yml의 urdf/asset 경로는 절대경로로 박혀 있어
+        # 설치 위치가 달라지면 깨진다. 이 패키지 폴더만 있으면
+        # 어디서 실행하든 동작하도록 config 기준으로 동적 override한다.
+        kinematics = cfg_dict.get("kinematics")
+        if kinematics is not None:
+            kinematics["urdf_path"] = M0609_URDF_PATH
+            kinematics["asset_root_path"] = M0609_ASSET_ROOT_PATH
+
         world = _empty_world()
 
         print("[cuRobo] MotionGen 초기화 중...")
