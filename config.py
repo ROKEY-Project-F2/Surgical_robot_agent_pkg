@@ -98,35 +98,43 @@ class AssetConfig:
     tool_usds: tuple[Path, ...] = field(
         default_factory=lambda: (
             TOOLS_DIR
-            / "scissors"
+            / "surgical_instruments"
+            / "Model"
             / "sm_bipolardissectingscissors_a01_01.usd",
-
+    
             TOOLS_DIR
-            / "caliper"
+            / "surgical_instruments"
+            / "Model"
             / "sm_caliper_a01_01.usd",
-
+    
             TOOLS_DIR
-            / "clamps"
+            / "surgical_instruments"
+            / "Model"
             / "sm_clamps_a01_01.usd",
-
+    
             TOOLS_DIR
-            / "forceps"
+            / "surgical_instruments"
+            / "Model"
             / "sm_forceps_a01_01.usd",
-
+    
             TOOLS_DIR
-            / "handsaw"
+            / "surgical_instruments"
+            / "Model"
             / "sm_handsaws_a01_01.usd",
-
+    
             TOOLS_DIR
-            / "knife"
+            / "surgical_instruments"
+            / "Model"
             / "sm_knife_a01_01.usd",
-
+    
             TOOLS_DIR
-            / "ligature_needle"
+            / "surgical_instruments"
+            / "Model"
             / "sm_ligatureneedle_a01_01.usd",
-
+    
             TOOLS_DIR
-            / "mallet"
+            / "surgical_instruments"
+            / "Model"
             / "sm_mallet_a01_01.usd",
         )
     )
@@ -322,6 +330,110 @@ def validate_hand_tracking_files() -> None:
             "MediaPipe Hand Landmarker 모델이 없습니다.\n"
             f"path={HAND_TRACKING.model_path}"
         )
+
+
+# ============================================================
+# 모션 경로 (motion/ 디렉토리 기준)
+# ============================================================
+
+MOTION_DIR: Final[Path] = PROJECT_ROOT / "motion"
+RMPFLOW_DIR: Final[str] = str(MOTION_DIR / "rmpflow")
+
+M0609_URDF_PATH: Final[str] = str(
+    ROBOTS_DIR / "doosan-robot2" / "urdf" / "m0609_isaac_sim.urdf"
+)
+
+M0609_DESCRIPTION_PATH: Final[str] = str(
+    MOTION_DIR / "rmpflow" / "m0609_description.yaml"
+)
+
+M0609_RMPFLOW_CONFIG_PATH: Final[str] = str(
+    MOTION_DIR / "rmpflow" / "m0609_rmpflow_common.yaml"
+)
+
+CUROBO_ROBOT_CONFIG_PATH: Final[str] = str(ROBOT.curobo_config_path)
+ROBOT_USD_PATH: Final[str] = str(ASSETS.full_scene_usd)
+
+
+# ============================================================
+# 로봇 / 그리퍼 flat 변수 (task 모듈 호환)
+# ============================================================
+
+ROBOT_PRIM_PATH: Final[str] = ROBOT.prim_path
+ROBOT_SCENE_NAME: Final[str] = "m0609_robot"
+EE_LINK_NAME: Final[str] = ROBOT.end_effector_link_name
+ROBOT_BASE_POSITION: Final[tuple] = ROBOT.base_position
+ROBOT_BASE_YAW_DEG: Final[float] = ROBOT.base_yaw_deg
+
+_SURFACE_GRIPPER_BASE_PATH: Final[str] = (
+    f"{ROBOT_PRIM_PATH}/onrobot_rg2ft/gripper_body/dual_suction_tool"
+)
+
+SURFACE_GRIPPER_PATHS: Final[list] = [
+    f"{_SURFACE_GRIPPER_BASE_PATH}/suction_contact_left/SurfaceGripper_left",
+    f"{_SURFACE_GRIPPER_BASE_PATH}/suction_contact_right/SurfaceGripper_right",
+]
+
+SURFACE_GRIPPER_WRITE_STATUS_TO_USD: Final[bool] = True
+
+DRIVE_STIFFNESS: Final[float] = 1e8
+DRIVE_DAMPING: Final[float] = 1e4
+DRIVE_MAX_FORCE: Final[float] = 1e8
+
+
+# ============================================================
+# 트레이 / Pick-Place flat 변수 (task 모듈 호환)
+# ============================================================
+
+TABLE_HEIGHT: Final[float] = SCENE.table_height
+
+SUPPORTED_TRAY_COMMANDS: Final[tuple] = (4, 5, 6, 7)
+
+TRAY_SPAWN_POSITIONS: Final[dict] = {
+    4: (0.24, 0.55, 1.05),
+    5: (0.24, 0.85, 1.05),
+    6: (0.72, 0.55, 1.05),
+    7: (0.72, 0.85, 1.05),
+}
+
+TEMP_TRAY_YAW_DEGREES: Final[dict] = {
+    4:  0.0,
+    5: 15.0,
+    6: -20.0,
+    7: 35.0,
+}
+
+TEMP_TRAY_SIZE: Final[tuple] = (0.300, 0.220, 0.01861830)
+TEMP_TRAY_MASS: Final[float] = 0.15
+ENABLE_TEMP_DYNAMIC_TRAYS: Final[bool] = True
+
+STAGING_POSITION: Final[tuple] = (0.10, 0.50, 1.35)
+
+PICK_EVENTS_DT: Final[tuple] = (
+    0.008, 0.005, 0.02, 0.15, 0.0025,
+    0.01, 0.0025, 1.0, 0.008, 0.08,
+)
+
+PICK_DEFAULT_EE_OFFSET: Final[tuple] = (0.0, 0.0, 0.20)
+PICK_APPROACH_Z_CORRECTION: Final[float] = 0.042
+
+PLACE_LINK6_ABOVE_TRAY: Final[float] = 0.136
+PLACE_HIGH_OFFSET: Final[float] = 0.10
+PLACE_APPROACH_GAP: Final[float] = 0.05
+PLACE_MOVE_TOLERANCE: Final[float] = 0.04
+
+
+# ============================================================
+# Tracking flat 변수 (task 모듈 호환)
+# ============================================================
+
+TRACKING_TOOL_ORIENTATION: Final[tuple] = (0.0, 0.0, 1.0, 0.0)
+TRACKING_Z_MIN: Final[float] = 1.10
+TRACKING_Z_MAX: Final[float] = 1.55
+TRACKING_MAX_JOINT_STEP: Final[float] = 0.02
+TRACKING_USE_MPC: Final[bool] = True
+
+INITIAL_SETTLING_FRAMES: Final[int] = 30
 
 
 def print_config_summary() -> None:
